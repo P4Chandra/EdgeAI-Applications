@@ -86,7 +86,7 @@ def connect_mqtt():
     return client
 
 
-def process_frame(frame, result, args, width, height):
+def process_frame(frame, result, args, width, height,inferencetime):
     '''
     Draw bounding boxes onto the frame. Determine People in frame and  duration they are in the frame.
     '''
@@ -100,7 +100,11 @@ def process_frame(frame, result, args, width, height):
             ymax = int(box[6] * height)
             cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 0, 255), 1)
             people+=1
- 
+    
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    textonvideo="Inference Time=  " +"{:.2f}".format(inferencetime)+" msec"
+    cv2.putText(frame,textonvideo,(50, 50),font, 1,(0, 255, 255),2, 
+                cv2.LINE_4)
     return frame,people
 
 def infer_on_stream(args, client):
@@ -151,14 +155,16 @@ def infer_on_stream(args, client):
         p_frame = p_frame.reshape(1, *p_frame.shape)
 
         ### TODO: Start asynchronous inference for specified request ###
+        inferencetime=time.time()
         infer_network.exec_net(p_frame)
         
         ### TODO: Wait for the result ###
         if infer_network.wait() == 0:
             ### TODO: Get the results of the inference request ###
             result = infer_network.get_output()
+            inferencetime = (time.time()-inferencetime)*1000
             ### TODO: Process the output
-            frame,current_count = process_frame(frame, result, args, width, height)
+            frame,current_count = process_frame(frame, result, args, width, height,inferencetime)
             ### TODO: Extract any desired stats from the results ###
             ### TODO: Calculate and send relevant information on ###
             ### current_count, total_count and duration to the MQTT server 
@@ -174,12 +180,12 @@ def infer_on_stream(args, client):
                 duration = time.time()-duration
                 # handle glitch when person just about to leave the frame
                 #they get counted again for fraction of second
-                if(duration<1.2): 
+                if(duration<1): 
                     total_count=total_count-1
-                    client.publish("person/total", json.dumps({"total": total_count}))
                 else:   
                     client.publish("person/duration", json.dumps({"duration": duration}))
-
+                    client.publish("person/total", json.dumps({"total": total_count}))
+                    client.publish("person/count", json.dumps({"count": prev_count}))
                 
             prev_count=current_count
             
