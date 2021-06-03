@@ -41,6 +41,12 @@ MQTT_HOST = IPADDRESS
 MQTT_PORT = 3001
 MQTT_KEEPALIVE_INTERVAL = 60
 
+#Minimum Time the person needs to stay in Frame to be detected
+THRESHOLD_DURATION=3.000
+
+#Issue Alarm if a person is spending too much time reading document
+THRESHOLD_USETIME=23.000
+
 # for Linux Platform
 CODEC = 0x00000021
 
@@ -85,7 +91,12 @@ def connect_mqtt():
     client.connect(MQTT_HOST, MQTT_PORT, MQTT_KEEPALIVE_INTERVAL)
     return client
 
-
+def raiseAlarm(frame):
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    cv2.putText(frame,"BUZZ OFF!!!",(250, 250),font,1,(0, 0, 255),2, cv2.LINE_8)
+    return frame
+        
+    return frame,people
 def process_frame(frame, result, args, width, height,inferencetime):
     '''
     Draw bounding boxes onto the frame. Determine People in frame and  duration they are in the frame.
@@ -93,7 +104,10 @@ def process_frame(frame, result, args, width, height,inferencetime):
     people=0
     for box in result[0][0]: # Output shape
         conf = box[2]
-        if conf >=args.prob_threshold:
+        label = (int(box[1]))
+        #label= 1 for coco person
+        #label =15 for Pascal class only other class in video is 9(table)
+        if conf >=args.prob_threshold and (label==15 or label==1) :
             xmin = int(box[3] * width)
             ymin = int(box[4] * height)
             xmax = int(box[5] * width)
@@ -105,6 +119,7 @@ def process_frame(frame, result, args, width, height,inferencetime):
     textonvideo="Inference Time=  " +"{:.2f}".format(inferencetime)+" msec"
     cv2.putText(frame,textonvideo,(50, 50),font, 1,(0, 255, 255),2, 
                 cv2.LINE_4)
+        
     return frame,people
 
 def infer_on_stream(args, client):
@@ -138,9 +153,11 @@ def infer_on_stream(args, client):
     #out = cv2.VideoWriter('out.mp4', CODEC, 30, (width,height))
     duration=0
     total_count=0
-    prev_count=0
+    prev_count=0.00
     inferenceTime=0.0
     infereceCounter=0
+    totalUpdateFlag = False
+    start_time =0.00
     while cap.isOpened():
     ### TODO: Read from the video capture ###
         
@@ -159,42 +176,48 @@ def infer_on_stream(args, client):
         infer_network.exec_net(p_frame)
         
         ### TODO: Wait for the result ###
+        
         if infer_network.wait() == 0:
             ### TODO: Get the results of the inference request ###
             result = infer_network.get_output()
             inferencetime = (time.time()-inferencetime)*1000
             ### TODO: Process the output
-            frame,current_count = process_frame(frame, result, args, width, height,inferencetime)
             ### TODO: Extract any desired stats from the results ###
             ### TODO: Calculate and send relevant information on ###
+            frame,current_count = process_frame(frame, result, args, width, height,inferencetime)
+
             ### current_count, total_count and duration to the MQTT server 
-            
             ### Topic "person": keys of "count" and "total" ###
-            if(prev_count<current_count): #person enters the frame
-                duration =time.time()
-                total_count = total_count + current_count - prev_count
-                client.publish("person/count", json.dumps({"count": current_count}))
-                client.publish("person/total", json.dumps({"total": total_count}))
+
+            if(current_count>prev_count and totalUpdateFlag==False):
+                start_time =time.time()
+                total_count = total_count + current_count-prev_count
+                totalUpdateFlag = True
+                client.publish("person", json.dumps({"total": total_count}))
+            
             ### Topic "person/duration": key of "duration" ###   
-            if(prev_count>current_count): # person left the frame current_count is reduced
-                duration = time.time()-duration
-                # handle glitch when person just about to leave the frame
-                #they get counted again for fraction of second
-                if(duration<1): 
-                    total_count=total_count-1
-                else:   
+            if(current_count<prev_count): # person left the frame current_count is reduced
+                duration = time.time()-start_time
+                # Update Total Count and duration when a person has been in frame for more than Threshold time
+                if(duration>THRESHOLD_DURATION): 
+                    totalUpdateFlag = False
                     client.publish("person/duration", json.dumps({"duration": duration}))
-                    client.publish("person/total", json.dumps({"total": total_count}))
-                    client.publish("person/count", json.dumps({"count": prev_count}))
-                
+
+            if(current_count>=1 and time.time()-start_time > THRESHOLD_USETIME):
+                frame=raiseAlarm(frame)
             prev_count=current_count
+   
             
             ### TODO: Send the frame to the FFMPEG server ###
             sys.stdout.buffer.write(frame)  
             sys.stdout.flush()
             #out.write(frame)
+        
         ### TODO: Write an output image if `single_image_mode` ###
-                    
+            if args.mode=='single_image_mode':  
+                cv2.imwrite('out.jpg',frame)
+                
+            client.publish("person", json.dumps({"count": current_count})) 
         if key_pressed == 27:
             break
     # Release the capture and destroy any OpenCV windows
