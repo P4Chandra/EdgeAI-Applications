@@ -1,0 +1,27 @@
+import matplotlib.pyplot as plt
+
+def plot(labels, data, title, label):
+    fig = plt.figure()
+    ax = fig.add_axes([0,0,1,1])
+    ax.set_ylabel(label)
+    ax.set_title(title)
+    ax.bar(labels, data)
+    
+def read_files(paths, labels):
+    load_time=[]
+    inference_time=[]
+    fps=[]
+    
+    for path in paths:
+        if os.path.isfile(path):
+            f=open(path, 'r')
+            load_time.append(float(f.readline()))
+            inference_time.append(float(f.readline()))
+            fps.append(float(f.readline()))
+
+    plot(labels, load_time, 'Model Load Time', 'seconds')
+    plot(labels, inference_time, 'Inference Time', 'seconds')
+    plot(labels, fps, 'Frames per Second', 'Frames')
+
+paths=['gpu_stats.txt', 'cpu_stats.txt']
+read_files(paths, ['GPU', 'CPU'])

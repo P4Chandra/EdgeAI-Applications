@@ -1,0 +1,2 @@
+vpu_job_id_core = !qsub inference_model_job.sh -d . -l nodes=tank-870:i5-6500te:intel-ncs2 -F "MYRIAD /data/models/intel/vehicle-license-plate-detection-barrier-0106/FP16/vehicle-license-plate-detection-barrier-0106 vpu_stats" -N store_core 
+print(vpu_job_id_core[0])
