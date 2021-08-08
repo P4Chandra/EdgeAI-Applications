@@ -1,0 +1,19 @@
+INFO:root:Loading Face Detector Model.....
+INFO:root:Loaded Face Detector Model in 0.21 secs
+INFO:root:Loading Face Landmark Detection Model.....
+INFO:root:Loaded Face Landmark Detector Model in 0.05 secs
+INFO:root:Loading HeadPose Model.....
+INFO:root:Loaded HeadPose Model in 0.06 secs
+INFO:root:Loading Gaze Estimation Model.....
+INFO:root:Loaded Gaze Estimation Model in 0.08 secs
+INFO:root:Video stream started....
+INFO:root:Video stream ended
+INFO:root:total inference time for face detection = 5.80
+INFO:root:total inference time for face landmark = 0.70
+INFO:root:total inference time for head pose = 0.65
+INFO:root:total inference time for gaze estimate model = 0.55
+INFO:root:total time to draw eyes = 0.01
+INFO:root:total time to draw gaze vectors = 0.03
+INFO:root:total time taken by mouse controllers = 167.87
+INFO:root:total inference time=229.9
+INFO:root:FPS=2.5967812092214007
